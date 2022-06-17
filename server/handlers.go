@@ -19,7 +19,7 @@ func LogRequest(handler http.Handler) http.HandlerFunc {
 	})
 }
 
-func UploadFileHandler(storePersistent *storage.PersistentStore, storeVolatile *storage.VolatileStore, storageType string) http.HandlerFunc {
+func UploadFileHandler(store storage.FileStore) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// limit upload size
 		r.Body = http.MaxBytesReader(w, r.Body, 2*512*1024)
@@ -67,26 +67,15 @@ func UploadFileHandler(storePersistent *storage.PersistentStore, storeVolatile *
 		}
 
 		// upload file to storage
-		if storageType == "persistent" {
-			if fileName, err := storePersistent.Upload(fileBytes); err != nil {
-				generateError(w, err.Error(), http.StatusBadRequest)
-			} else {
-				w.Write([]byte(fileName))
-			}
-		} else if storageType == "volatile" {
-			if fileName, err := storeVolatile.Upload(fileBytes); err != nil {
-				generateError(w, err.Error(), http.StatusBadRequest)
-			} else {
-				w.Write([]byte(fileName))
-			}
+		if fileName, err := store.Upload(fileBytes); err != nil {
+			generateError(w, err.Error(), http.StatusBadRequest)
 		} else {
-			generateError(w, "INVALID_STORAGE_METHOD", http.StatusInternalServerError)
-			return
+			w.Write([]byte(fileName))
 		}
 	})
 }
 
-func DownloadFileHandler(storePersistent *storage.PersistentStore, storeVolatile *storage.VolatileStore, storageType string) http.HandlerFunc {
+func DownloadFileHandler(store storage.FileStore) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Parse requested fileName from request
 		fileName, err := parseFileName(r)
@@ -96,23 +85,11 @@ func DownloadFileHandler(storePersistent *storage.PersistentStore, storeVolatile
 		}
 
 		// download file from storage
-		if storageType == "persistent" {
-			if fc, err := storePersistent.Download(fileName); err != nil {
-				generateError(w, err.Error(), http.StatusNotFound)
-				return
-			} else {
-				w.Write(fc)
-			}
-		} else if storageType == "volatile" {
-			if fc, err := storeVolatile.Download(fileName); err != nil {
-				generateError(w, err.Error(), http.StatusNotFound)
-				return
-			} else {
-				w.Write(fc)
-			}
-		} else {
-			generateError(w, "INVALID_STORAGE_METHOD", http.StatusInternalServerError)
+		if fc, err := store.Download(fileName); err != nil {
+			generateError(w, err.Error(), http.StatusNotFound)
 			return
+		} else {
+			w.Write(fc)
 		}
 	})
 }
